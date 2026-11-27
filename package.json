@@ -1,11 +1,15 @@
 {
-  "name": "@gospeak/server-root",
-  "private": true,
-  "version": "1.3.0-rc.1",
-  "packageManager": "pnpm@10.11.0",
-  "scripts": {
-    "test:server": "pnpm --dir test test",
-    "gen:protocol": "cd server && go run ./cmd/gen-protocol -out /tmp/gen",
-    "version:check": "node scripts/check-version.mjs . \"\" server"
-  }
+	"name": "@gospeak/server-root",
+	"private": true,
+	"version": "1.3.0-rc.1",
+	"packageManager": "pnpm@10.11.0",
+	"scripts": {
+		"prepare": "lefthook install",
+		"test:server": "pnpm --dir test test",
+		"gen:protocol": "cd server && go run ./cmd/gen-protocol -out /tmp/gen",
+		"version:check": "node scripts/check-version.mjs . \"\" server"
+	},
+	"devDependencies": {
+		"lefthook": "2.2.2"
+	}
 }
