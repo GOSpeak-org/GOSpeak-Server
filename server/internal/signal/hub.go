@@ -1,0 +1,319 @@
+package signal
+
+import (
+	"GOSpeak/internal/model"
+	"GOSpeak/internal/pkg"
+	"GOSpeak/internal/policy"
+	"GOSpeak/internal/sfu"
+	"encoding/json"
+	"fmt"
+	"sync"
+	"time"
+
+	"GOSpeak/internal/logger"
+	"GOSpeak/internal/ws"
+)
+
+// roomStore abstracts DB room listing for Hub.
+type roomStore interface {
+	List(page, pageSize int, roomType, domainUUID string) ([]model.Room, int64, error)
+	GetByName(name string) (*model.Room, error)
+	GetByDomainAndName(domainUUID, name string) (*model.Room, error)
+}
+
+// roomLayoutStore 提供域级房间分组布局的只读访问，供房间列表排序与标题渲染。
+type roomLayoutStore interface {
+	Groups(domainUUID string) ([]model.DomainRoomGroup, error)
+	Layout(domainUUID string) (model.DomainRoomLayout, error)
+}
+
+// muteStore abstracts mute checking for Hub.
+type muteStore interface {
+	IsMutedByIdentity(identity string) (bool, *model.Mute, error)
+	IsMutedBatch(identities []string) (map[string]bool, error)
+}
+
+// userStore abstracts user lookup for Hub.
+type userStore interface {
+	GetByName(name string) (*model.User, error)
+	GetByNames(names []string) (map[string]*model.User, error)
+	GetByID(id uint) (*model.User, error)
+	GetByUUID(uuid string) (*model.User, error)
+}
+
+// permChecker 抽象权限校验，复用 service.PermissionService 的内存缓存。
+type permChecker interface {
+	HasPermission(roleName, permCode string) bool
+}
+
+// broadcastFn 供 provider 模块广播房间事件，无需依赖 Hub 具体类型。
+type BroadcastFn func(room, event string, data interface{})
+
+// StreamNameResolver 计算给定 room+identity 的预期 stream 名，用于服务端覆写客户端提报值。
+type StreamNameResolver interface {
+	StreamName(room, identity string) string
+}
+
+type Hub struct {
+	fanout          ws.Broadcaster
+	eventBus        eventBus
+	sfuProvider     sfu.Provider
+	sfuProviderName string
+	streamResolver  StreamNameResolver
+	rooms           map[string]*Room // roomName -> Room
+	mu              sync.RWMutex
+	roomStore       roomStore
+	layoutStore     roomLayoutStore
+	muteStore       muteStore
+	userStore       userStore
+	permChecker     permChecker
+	membershipStore membershipStore
+	instanceID      string
+	cleanupPub      cleanupPublisher
+	stateNotifier   stateNotifier
+	connSlots       map[string]*connRoomSlots // socketID -> slots
+	msgSvc          messageSender
+	convSvc         conversationSender
+	// accessPolicy 是传输无关策略引擎在 signal 层的适配入口，
+	// 用于 message/typing/private 等事件按服务端权威域做二次判决。
+	accessPolicy            func(policy.Subject, policy.Action, string) policy.Decision
+	domainChecker           func(domainUUID, userUUID string) bool
+	domainPermChecker       func(domainUUID, userUUID, permCode string) bool
+	clientDomains           map[string]string // socketID -> current domain scope (empty = platform)
+	membershipHeartbeatStop chan struct{}
+	membershipHeartbeatDone chan struct{}
+	// emptyRoomSeen 记录 SFU 侧观察到空房的首次时间戳，用于两阶段确认后再删。
+	// 由 reconcileMu 保护，避免对账 goroutine 与查询路径并发读写。
+	emptyRoomSeen map[string]int64
+	reconcileMu   sync.Mutex
+	reconcileStop chan struct{}
+	reconcileDone chan struct{}
+	// kickBans 记录 room+identity 的短时踢出冷却，阻止被踢者立即重连同一房间。
+	kickBans map[string]time.Time
+	// muteCache 缓存 OnMemberSpeaking 的禁言查询结果，避免高频发言态上报打爆 DB。
+	// TTL 5s；禁言/解禁不主动失效缓存，最坏 5s 陈旧窗口（发言指示非安全边界，SFU 层仍强制执行静音）。
+	muteCache map[string]muteCacheEntry
+	// typing 记录「正在输入」的节流状态，避免每个按键都向房间广播。
+	typingMu sync.Mutex
+	typing   map[string]*typingEntry
+	// pendingCleanups 是断连后延迟执行的 SFU 清理任务（key = roomKey\x00identity）。
+	// WS 抖动（切网/锁屏/代理超时/后端发布）断连时，若 grace 窗口内同一 identity 重新
+	// 加入同一房间则取消清理，避免媒体 participant 被立即移除导致「被踢」。
+	// 由 cleanupMu 保护，与 h.mu 解耦（定时器回调先取 cleanupMu、释放后再取 h.mu）。
+	pendingCleanups map[string]*pendingCleanup
+	cleanupMu       sync.Mutex
+	// disconnectGrace 是断连到 SFU 清理的宽限期；0 表示立即清理（测试默认）。
+	disconnectGrace time.Duration
+}
+
+// HubOptions 聚合 Hub 的协作依赖，由组合根在构造时一次传入。
+type HubOptions struct {
+	Fanout                  ws.Broadcaster
+	EventBus                eventBus
+	SFUProvider             sfu.Provider
+	StreamResolver          StreamNameResolver
+	MessageSender           messageSender
+	ConversationSender      conversationSender
+	DomainChecker           func(domainUUID, userUUID string) bool
+	DomainPermissionChecker func(domainUUID, userUUID, permCode string) bool
+	MembershipStore         membershipStore
+	LayoutStore             roomLayoutStore
+	InstanceID              string
+	StateNotifier           stateNotifier
+	// DisconnectGrace 是 WS 断连到 SFU 清理的宽限期；0 = 立即清理。
+	// 生产组合根应注入正值，避免信令抖动导致媒体被立即踢出。
+	DisconnectGrace time.Duration
+}
+
+// NewHub 测试缝四参构造（配合 Set* 后置注入）；生产路径请使用 NewHubWithOptions。
+func NewHub(store roomStore, mStore muteStore, uStore userStore, pChecker permChecker) *Hub {
+	return NewHubWithOptions(store, mStore, uStore, pChecker, HubOptions{})
+}
+
+// NewHubWithOptions 在构造时注入协作依赖，避免启动期 Set* 后置装配。
+func NewHubWithOptions(store roomStore, mStore muteStore, uStore userStore, pChecker permChecker, opts HubOptions) *Hub {
+	h := &Hub{
+		rooms:           make(map[string]*Room),
+		roomStore:       store,
+		muteStore:       mStore,
+		userStore:       uStore,
+		permChecker:     pChecker,
+		connSlots:       make(map[string]*connRoomSlots),
+		clientDomains:   make(map[string]string),
+		kickBans:        make(map[string]time.Time),
+		muteCache:       make(map[string]muteCacheEntry),
+		typing:          make(map[string]*typingEntry),
+		emptyRoomSeen:   make(map[string]int64),
+		pendingCleanups: make(map[string]*pendingCleanup),
+		disconnectGrace: opts.DisconnectGrace,
+	}
+	h.fanout = opts.Fanout
+	h.eventBus = opts.EventBus
+	h.sfuProvider = opts.SFUProvider
+	h.streamResolver = opts.StreamResolver
+	h.msgSvc = opts.MessageSender
+	h.convSvc = opts.ConversationSender
+	h.domainChecker = opts.DomainChecker
+	h.domainPermChecker = opts.DomainPermissionChecker
+	h.membershipStore = opts.MembershipStore
+	h.layoutStore = opts.LayoutStore
+	h.instanceID = opts.InstanceID
+	h.stateNotifier = opts.StateNotifier
+	return h
+}
+
+// 以下 Set* 为测试缝（生产路径统一走 NewHubWithOptions + SetupFanout）。
+func (h *Hub) SetFanout(f ws.Broadcaster) {
+	h.fanout = f
+}
+
+func (h *Hub) SetSFU(provider sfu.Provider) {
+	h.sfuProvider = provider
+}
+
+func (h *Hub) SetStreamResolver(r StreamNameResolver) {
+	h.streamResolver = r
+}
+
+func (h *Hub) SetDomainChecker(checker func(domainUUID, userUUID string) bool) {
+	h.domainChecker = checker
+}
+
+func (h *Hub) SetDomainPermissionChecker(checker func(domainUUID, userUUID, permCode string) bool) {
+	h.domainPermChecker = checker
+}
+
+// SetAccessPolicy 注入传输无关策略判决（由组合根的 policy.Engine 提供）。
+// signal 层只在 typing / private:send 等没有其他强制入口的事件上调用它；
+// message:* 已由 ws.HandlerRegistry 的 PolicyGuard 统一判决，不在这里重复评估。
+// 当前 policy.Engine 只做身份级封禁，domainUUID 是预留参数，尚无域级规则。
+func (h *Hub) SetAccessPolicy(fn func(policy.Subject, policy.Action, string) policy.Decision) {
+	h.accessPolicy = fn
+}
+
+// ClientDomain 返回连接当前所处的域（由服务端在 room:join/room:list 时登记）。
+// 相比客户端消息 payload 里的 domain_uuid，这是可信的域上下文。
+func (h *Hub) ClientDomain(clientID string) string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.clientDomains[clientID]
+}
+
+// checkWSPolicy 用权威域上下文复查策略。未注入策略时保持放行（测试/嵌入路径）。
+// 注意：当前 policy.Engine 只做身份级封禁判决，domainUUID 是预留参数，
+// 尚无域级规则，调用方不要假设域级强制已生效。
+func (h *Hub) checkWSPolicy(c ws.ClientMessenger, action policy.Action, domainUUID string) policy.Decision {
+	if h.accessPolicy == nil || c == nil || c.Claims() == nil {
+		return policy.Decision{Allowed: true, Code: pkg.SUCCESS}
+	}
+	return h.accessPolicy(policy.SubjectFromClaims(c.Claims()), action, domainUUID)
+}
+
+// ─── 事件注册 ───
+
+// SetupFanout registers all signal event handlers with the WS HandlerRegistry.
+func (h *Hub) SetupFanout(fanout ws.Broadcaster, handler *ws.HandlerRegistry) {
+	h.SetFanout(fanout)
+
+	handler.Handle(EventRoomCreate, h.OnRoomCreate)
+	handler.HandleAck(EventRoomJoin, h.OnRoomJoin)
+	handler.HandleAck(EventRoomJoinSFU, h.OnRoomJoinSFU)
+	handler.HandleAck(EventRoomLeave, h.OnRoomLeave)
+	handler.Handle(EventRoomList, h.OnRoomList)
+	handler.Handle(EventRoomKick, h.OnRoomKick)
+	handler.Handle(EventMemberMicState, h.OnMemberMicState)
+	handler.Handle(EventMemberSpeaking, h.OnMemberSpeaking)
+	handler.Handle(EventTyping, h.OnTyping)
+	handler.HandleAck(EventMessageSend, h.OnMessageSend)
+	handler.HandleAck(EventMessageEdit, h.OnMessageEdit)
+	handler.HandleAck(EventMessageDelete, h.OnMessageDelete)
+	handler.HandleAck(EventMessageReact, h.OnMessageReact)
+	handler.HandleAck(EventMessageUnreact, h.OnMessageUnreact)
+	handler.HandleAck(EventPrivateSend, h.OnPrivateMessageSend)
+
+}
+
+// claimsIdentity 从连接上下文读取 JWT 身份；未鉴权返回空。
+func clientIdentity(c ws.ClientMessenger) string {
+	if c == nil || c.Claims() == nil {
+		return ""
+	}
+	return c.Claims().Username
+}
+
+// resolveIdentity 强制使用 JWT 身份，忽略客户端伪造的 identity。
+func resolveIdentity(c ws.ClientMessenger) (string, error) {
+	identity := clientIdentity(c)
+	if identity == "" {
+		return "", fmt.Errorf("unauthorized")
+	}
+	return identity, nil
+}
+
+func (h *Hub) domainMemberAllowed(c ws.ClientMessenger, domainUUID string) bool {
+	if domainUUID == "" {
+		return true
+	}
+	if h.domainChecker == nil {
+		return false
+	}
+	if c == nil || c.Claims() == nil {
+		return false
+	}
+	userUUID := c.Claims().UserUUID
+	if userUUID == "" {
+		userUUID = c.Claims().Username
+	}
+	return h.domainChecker(domainUUID, userUUID)
+}
+
+func (h *Hub) setClientDomain(c ws.ClientMessenger, domainUUID string) {
+	if c == nil {
+		return
+	}
+	h.mu.Lock()
+	prev := h.clientDomains[c.ID()]
+	h.clientDomains[c.ID()] = domainUUID
+	h.mu.Unlock()
+
+	if h.fanout == nil {
+		return
+	}
+	if prev != domainUUID {
+		h.fanout.Leave(domainRoomKey(prev), c.ID())
+	}
+	h.fanout.Join(domainRoomKey(domainUUID), c.ID())
+}
+
+// ─── 连接/断开 ───
+
+// OnConnect is called when a new WS client connects.
+// JWT auth is handled by the Upgrader before the client reaches the Hub;
+// this hook is for logging only. The connection is already authenticated
+// and claims are available via c.Claims().
+func (h *Hub) OnConnect(c ws.ClientMessenger) error {
+	logger.WithComponent("Signal").Infof("[Signal] client connected: %s", c.ID())
+	// Join personal room for direct message delivery: __user:{identity}
+	if identity := clientIdentity(c); identity != "" {
+		if h.fanout != nil {
+			h.fanout.Join("__user:"+identity, c.ID())
+		}
+	}
+	return nil
+}
+
+// ─── 房间创建 ───
+
+// OnError 兜底处理 WS 层 error（含 OnConnect 返回的 panic error）。
+// 仅记录日志，不做断连等副作用——连接级错误由库自行处理。
+func (h *Hub) OnError(c ws.ClientMessenger, err error) {
+	if c == nil {
+		logger.WithComponent("Signal").Infof("[Signal] socket error: err=%v", err)
+		return
+	}
+	logger.WithComponent("Signal").Infof("[Signal] socket error: conn=%s err=%v", c.ID(), err)
+}
+
+func parseJSON(data string, v interface{}) error {
+	return json.Unmarshal([]byte(data), v)
+}

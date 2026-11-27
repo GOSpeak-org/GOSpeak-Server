@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: gospeak
+
+rule_files:
+  - /etc/prometheus/rules.yml
+
+scrape_configs:
+  # 单实例架构：只有应用本身暴露指标（旧的 agent/worker 目标已随集群一起拆除）。
+  - job_name: gospeak
+    metrics_path: /metrics
+    # METRICS_TOKEN 由 deploy/init.sh 按档位写入该文件，密钥不进配置。
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/metrics_token
+    static_configs:
+      - targets:
+          - gospeak:8998

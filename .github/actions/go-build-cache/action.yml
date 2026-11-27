@@ -1,0 +1,94 @@
+name: go build cache
+description: >-
+  Cache Go module + build artifacts across runs with integrity self-healing.
+  setup-go's built-in cache cannot tell a partial cache from a complete one: a
+  cancelled job can save a half-downloaded module cache that then poisons every
+  later run (167 module downloads per job). This action owns both caches and
+  rebuilds a partial module cache on detection.
+inputs:
+  go-sum-path:
+    description: Path to go.sum used as cache key seed (its directory holds go.mod)
+    required: true
+  cache-prefix:
+    description: Namespace to separate server/desktop/mobile caches
+    required: true
+    default: server
+  cache-path:
+    # Go's GOCACHE default differs by OS: ~/.cache/go-build on Linux,
+    # ~/Library/Caches/go-build on macOS. Caching a non-existent path
+    # silently no-ops, so resolve the OS default when not overridden.
+    description: GOCACHE directory to cache; auto-detected per OS when empty
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    # Resolve both cache locations from the Go toolchain itself. GOMODCACHE is
+    # platform-stable; GOCACHE is not, hence the OS switch below.
+    - name: Resolve Go cache paths
+      id: paths
+      shell: bash
+      run: |
+        echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+        if [ -n "${{ inputs.cache-path }}" ]; then
+          echo "build=${{ inputs.cache-path }}" >> "$GITHUB_OUTPUT"
+        elif [ "${{ runner.os }}" = "macOS" ]; then
+          echo "build=~/Library/Caches/go-build" >> "$GITHUB_OUTPUT"
+        else
+          echo "build=~/.cache/go-build" >> "$GITHUB_OUTPUT"
+        fi
+
+    # Restore by prefix only. The exact key includes the run id so a rebuilt
+    # cache is never skipped as "already exists"; restore-keys picks the newest
+    # complete cache saved by an earlier run.
+    - name: Restore Go module cache
+      id: mod-restore
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.paths.outputs.mod }}
+        key: gomod-${{ inputs.cache-prefix }}-${{ runner.os }}-v2-${{ hashFiles(inputs.go-sum-path) }}-${{ github.run_id }}
+        restore-keys: |
+          gomod-${{ inputs.cache-prefix }}-${{ runner.os }}-v2-${{ hashFiles(inputs.go-sum-path) }}-
+
+    # A completion sentinel separates a genuinely complete download from a
+    # partial one left behind by a cancelled job. Missing sentinel -> wipe and
+    # re-download, so a poisoned cache self-heals on the very next run.
+    - name: Verify and repair Go module cache
+      id: mod-integrity
+      shell: bash
+      run: |
+        set -euo pipefail
+        MODCACHE="${{ steps.paths.outputs.mod }}"
+        SENTINEL="$MODCACHE/.gospeak-modules-complete"
+        if [ -f "$SENTINEL" ]; then
+          echo "intact=true" >> "$GITHUB_OUTPUT"
+          echo "Go module cache verified complete."
+        else
+          echo "intact=false" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Go module cache::Partial or missing cache detected; rebuilding from go.sum."
+          rm -rf "$MODCACHE"
+          mkdir -p "$MODCACHE"
+          cd "$(dirname '${{ inputs.go-sum-path }}')"
+          go mod download
+          touch "$SENTINEL"
+        fi
+
+    # Only save when we actually rebuilt; a key unique to this run means the
+    # cache is not rejected for already existing.
+    - name: Save Go module cache
+      if: steps.mod-integrity.outputs.intact == 'false'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.paths.outputs.mod }}
+        key: gomod-${{ inputs.cache-prefix }}-${{ runner.os }}-v2-${{ hashFiles(inputs.go-sum-path) }}-${{ github.run_id }}
+
+    # Build cache is content-addressed: a partial entry only costs a recompile,
+    # never a wrong artifact. Keep the simple cache action for it.
+    - name: Restore Go build cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.paths.outputs.build }}
+        key: gocache-${{ inputs.cache-prefix }}-${{ runner.os }}-v2-${{ hashFiles(inputs.go-sum-path) }}
+        restore-keys: |
+          gocache-${{ inputs.cache-prefix }}-${{ runner.os }}-v2-
+          gocache-${{ inputs.cache-prefix }}-${{ runner.os }}-

@@ -1,0 +1,5 @@
+runtime: node
+plugin_id: com.example.audit
+name: 内容审核插件
+version: 1.0.0
+entrypoint: index.js

@@ -1,0 +1,14 @@
+{
+	"name": "com.example.audit",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"description": "GOSpeak 示例内容审核插件",
+	"main": "index.js",
+	"scripts": {
+		"start": "node index.js"
+	},
+	"dependencies": {
+		"@gospeak/plugin-sdk": "file:../../../../packages/plugin-sdk"
+	}
+}

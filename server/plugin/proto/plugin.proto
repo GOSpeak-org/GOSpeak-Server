@@ -1,0 +1,187 @@
+syntax = "proto3";
+
+package gospeak.plugin.v1;
+
+option go_package = "GOSpeak/internal/plugin/gen";
+
+service RegistrationService {
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+}
+
+message RegisterRequest {
+  string plugin_id = 1;
+  string name = 2;
+  string version = 3;
+  repeated string hook_types = 4;
+  repeated Page pages = 5;
+  string hook_endpoint = 6;
+}
+
+message Page {
+  string route_path = 1;
+  string mode = 2;
+  string entry_url = 3;
+}
+
+message RegisterResponse {
+  string api_endpoint = 1;
+  repeated string confirmed_pages = 2;
+}
+
+message HeartbeatRequest {
+  string plugin_id = 1;
+}
+
+message HeartbeatResponse {}
+
+service PluginAPIService {
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc ListRooms(ListRoomsRequest) returns (ListRoomsResponse);
+  rpc MuteUser(MuteUserRequest) returns (MuteUserResponse);
+  rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+  rpc KVSave(KVSaveRequest) returns (KVSaveResponse);
+  rpc KVLoad(KVLoadRequest) returns (KVLoadResponse);
+  rpc ReportError(ReportErrorRequest) returns (ReportErrorResponse);
+}
+
+message GetUserRequest {
+  string user_uuid = 1;
+}
+
+message GetUserResponse {
+  string user_uuid = 1;
+  string username = 2;
+  string display_name = 3;
+}
+
+message ListRoomsRequest {
+  string domain_uuid = 1;
+}
+
+message Room {
+  string room_uuid = 1;
+  string name = 2;
+}
+
+message ListRoomsResponse {
+  repeated Room rooms = 1;
+}
+
+message MuteUserRequest {
+  string user_uuid = 1;
+  string room_uuid = 2;
+  string reason = 3;
+  string request_id = 4;
+}
+
+message MuteUserResponse {
+  bool ok = 1;
+}
+
+message CreateRoomRequest {
+  string domain_uuid = 1;
+  string name = 2;
+  string reason = 3;
+  string request_id = 4;
+}
+
+message CreateRoomResponse {
+  string room_uuid = 1;
+}
+
+message GetConfigRequest {
+  string plugin_id = 1;
+}
+
+message GetConfigResponse {
+  string config_json = 1;
+}
+
+message KVSaveRequest {
+  string plugin_id = 1;
+  string key = 2;
+  string value_json = 3;
+  string reason = 4;
+  string request_id = 5;
+}
+
+message KVSaveResponse {}
+
+message KVLoadRequest {
+  string plugin_id = 1;
+  string key = 2;
+}
+
+message KVLoadResponse {
+  string value_json = 1;
+  bool found = 2;
+}
+
+message ReportErrorRequest {
+  string plugin_id = 1;
+  string message = 2;
+  string details_json = 3;
+  string request_id = 4;
+}
+
+message ReportErrorResponse {}
+
+service PluginHookService {
+  rpc HandleEvent(HandleEventRequest) returns (HandleEventResponse);
+}
+
+message HandleEventRequest {
+  string plugin_id = 1;
+  string event_type = 2;
+  string payload_json = 3;
+  string request_id = 4;
+}
+
+message HandleEventResponse {}
+
+service RuntimeService {
+  rpc Install(InstallRequest) returns (InstallResponse);
+  rpc List(ListRuntimesRequest) returns (ListRuntimesResponse);
+  rpc Use(UseRuntimeRequest) returns (UseRuntimeResponse);
+}
+
+message InstallRequest {
+  string kind = 1;
+  string version = 2;
+  string mirror = 3;
+  string reason = 4;
+  string request_id = 5;
+}
+
+message InstallResponse {
+  bool installed = 1;
+  bool unsupported = 2;
+}
+
+message ListRuntimesRequest {
+  string kind = 1;
+}
+
+message RuntimeVersion {
+  string kind = 1;
+  string version = 2;
+  bool active = 3;
+}
+
+message ListRuntimesResponse {
+  repeated RuntimeVersion runtimes = 1;
+}
+
+message UseRuntimeRequest {
+  string kind = 1;
+  string version = 2;
+  string reason = 3;
+  string request_id = 4;
+}
+
+message UseRuntimeResponse {
+  bool ok = 1;
+  bool unsupported = 2;
+}

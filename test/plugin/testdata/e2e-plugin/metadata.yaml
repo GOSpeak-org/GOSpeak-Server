@@ -1,0 +1,6 @@
+runtime: node
+plugin_id: com.example.e2e
+name: E2E fixture plugin
+version: 1.0.0
+entrypoint: index.js
+npm_args: ["--offline", "--ignore-scripts"]

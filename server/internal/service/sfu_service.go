@@ -1,0 +1,103 @@
+package service
+
+import (
+	"errors"
+	"fmt"
+
+	"GOSpeak/internal/pkg"
+	"GOSpeak/internal/sfu"
+)
+
+// JoinTokenResult 是 GetJoinToken 的聚合结果，handler 直接映射为 JSON 响应。
+type JoinTokenResult struct {
+	Token        string
+	ServerURL    string
+	Provider     string
+	ClientInfo   map[string]interface{}
+	Stream       string
+	StreamToken  string
+	Capabilities sfu.Capabilities
+	SFURoom      string
+}
+
+// SFUService 是 SFU 调用 + 加入规则校验的 service 中间层。
+// handler 只调本 service，不再直持 sfu.Provider 或 signal.Hub，
+// 满足 handler→service→repository/SFU 分层契约。
+type SFUService struct {
+	provider     sfu.Provider
+	policy       pkg.JoinPolicy
+	domainMember func(domainUUID, userUUID string) bool
+}
+
+func NewSFUService(provider sfu.Provider, policy pkg.JoinPolicy, domainMember func(domainUUID, userUUID string) bool) *SFUService {
+	return &SFUService{provider: provider, policy: policy, domainMember: domainMember}
+}
+
+// GetJoinToken 编排加入规则校验（禁言/限流/密码）+ token 签发 + stream 信息。
+// 规则失败返 *pkg.AppError，handler 经 HandleError 映射状态码。
+func (s *SFUService) GetJoinToken(domainUUID, room, identity, userUUID, password string) (*JoinTokenResult, error) {
+	if domainUUID != "" && (s.domainMember == nil || !s.domainMember(domainUUID, userUUID)) {
+		return nil, pkg.NewAppError(pkg.FORBIDDEN, "not a member of this domain")
+	}
+	canPublish := true
+	if s.policy != nil {
+		if muted, err := s.policy.IsMuted(identity); err != nil {
+			return nil, pkg.NewAppError(pkg.INTERNAL_ERROR, "mute check failed")
+		} else if muted {
+			return nil, pkg.NewAppError(pkg.USER_MUTED, "user is muted")
+		}
+		if full, limit, count, err := s.policy.CheckRoomLimit(domainUUID, room); err != nil {
+			return nil, pkg.NewAppError(pkg.INTERNAL_ERROR, "room limit check failed")
+		} else if full {
+			return nil, pkg.NewAppError(pkg.FORBIDDEN, fmt.Sprintf("room is full (%d/%d)", count, limit))
+		}
+		if ok, err := s.policy.CheckRoomPassword(domainUUID, room, password); !ok {
+			if err != nil {
+				return nil, pkg.NewAppError(pkg.FORBIDDEN, "room requires password")
+			}
+			return nil, pkg.NewAppError(pkg.FORBIDDEN, "wrong room password")
+		}
+	}
+
+	sfuRoom := pkg.RoomKey(domainUUID, room)
+	token, err := s.generateTokenWithPublish(sfuRoom, identity, canPublish)
+	if err != nil {
+		return nil, err
+	}
+	res := &JoinTokenResult{
+		Token:        token,
+		ServerURL:    s.provider.GetHost(),
+		Provider:     s.provider.ProviderName(),
+		Capabilities: s.provider.Capabilities(),
+		SFURoom:      sfuRoom,
+	}
+	res.ClientInfo = s.provider.ClientInfo()
+	if s.provider.SupportsStream() {
+		st, stok, err := s.provider.StreamInfo(sfuRoom, identity)
+		if err != nil {
+			return nil, err
+		}
+		res.Stream = st
+		res.StreamToken = stok
+	}
+	return res, nil
+}
+
+// generateTokenWithPublish 在 Provider 支持发布控制（LiveKit）时按 canPublish 签发，
+// 直接反映禁说策略。不支持发布控制的 provider 无法在 token 阶段限制发布，
+// 其禁说降级由信令层在 SFU 进房确认后强制。
+func (s *SFUService) generateTokenWithPublish(room, identity string, canPublish bool) (string, error) {
+	token, err := s.provider.GenerateTokenWithPublish(room, identity, canPublish)
+	if errors.Is(err, pkg.ErrSFUNotSupported) {
+		return s.provider.GenerateToken(room, identity)
+	}
+	return token, err
+}
+
+func (s *SFUService) ListRooms() ([]sfu.RoomSummary, error) {
+	return s.provider.ListRooms()
+}
+
+func (s *SFUService) ListParticipants(room string) ([]sfu.ParticipantSummary, error) {
+	return s.provider.ListParticipants(room)
+}

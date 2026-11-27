@@ -1,0 +1,196 @@
+name: Docker
+
+on:
+  pull_request:
+    branches: [release, dev]
+    paths-ignore:
+      - "docs/**"
+      - "app/docs/**"
+      - "**/*.md"
+  push:
+    tags: ["gospeak-server-v*"]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "发布模式：填 gospeak-server-v* tag（如 gospeak-server-v1.0.2）；留空 = 仅构建验证"
+        required: false
+        default: ""
+  workflow_call:
+    inputs:
+      release_tag:
+        description: "gospeak-server-v* tag，由 version-bump 在打 tag 后传入"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Client web dist release used by both verify and publish builds.
+env:
+  WEB_RELEASE_TAG: gospeak-web-v1.4.0-rc.1
+
+concurrency:
+  group: docker-${{ inputs.release_tag || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Build Image
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.release_tag == '')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check product version
+        run: node scripts/check-version.mjs . "" server
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - name: Resolve client web dist
+        id: web
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          url="$(
+            gh release view "$WEB_RELEASE_TAG" --repo GOSpeak-org/GOSpeak-Client \
+              --json assets \
+              --jq '[.assets[] | select(.name | endswith("-dist.tar.gz"))][0].url'
+          )"
+          if [ -z "$url" ] || [ "$url" = "null" ]; then
+            echo "::error::no -dist.tar.gz asset in $WEB_RELEASE_TAG" >&2
+            exit 1
+          fi
+          curl -sSfL "$url" -o "$RUNNER_TEMP/web-dist.tar.gz"
+          sha="$(sha256sum "$RUNNER_TEMP/web-dist.tar.gz" | cut -d' ' -f1)"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          echo "resolved: $url (sha256=$sha)"
+      - name: Build image without pushing
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          tags: gospeak:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            CLIENT_WEB_URL=${{ steps.web.outputs.url }}
+            CLIENT_WEB_SHA256=${{ steps.web.outputs.sha256 }}
+
+  publish:
+    name: Publish Image
+    # tag push 直接触发；workflow_call 由 version-bump 在 bot 打 tag 后显式调用
+    # （GITHUB_TOKEN 推送的 tag 不会派生本 workflow，见 version-bump.yml 头部说明）。
+    # 注意：reusable workflow 内 github.event_name / github.ref 属于调用方上下文，
+    # 被调用时是调用方的事件（如 push + refs/heads/release），永远不会是 workflow_call，
+    # 因此这里只按 ref 类型与 inputs.release_tag 判断。
+    if: >-
+      (github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/gospeak-server-v')) ||
+      startsWith(inputs.release_tag, 'gospeak-server-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Resolve release ref
+        id: ref
+        # tag push 用触发 ref；call/dispatch 用显式输入的 tag 名。
+        # 不能用 github.event_name 判断：reusable workflow 里它是调用方的事件名。
+        run: |
+          set -euo pipefail
+          if [ -n "${{ inputs.release_tag }}" ]; then
+            echo "tag=${{ inputs.release_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.ref.outputs.tag }}
+      - name: Use pipeline Dockerfile from the triggering ref
+        # 发布 tag 锁定的是应用源码；Dockerfile 属于构建流水线，跟随触发本次
+        # workflow 的分支/commit。这样修复镜像构建（例如避开 QEMU 慢路径）
+        # 不必重新打版本 tag，也能用新流水线补发旧镜像。
+        env:
+          TRIGGER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if git fetch --depth=1 origin "$TRIGGER_SHA"; then
+            git show FETCH_HEAD:Dockerfile > Dockerfile
+          else
+            echo "::warning::could not read Dockerfile from $TRIGGER_SHA; using the release tag's copy"
+          fi
+      - name: Resolve commit
+        id: commit
+        # 统一在 checkout 后解析，tag push 与显式调用两条路径都能拿到正确 commit。
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Check release version
+        env:
+          RELEASE_TAG: ${{ steps.ref.outputs.tag }}
+        run: node scripts/check-version.mjs . "$RELEASE_TAG" server
+      - name: Resolve image version
+        id: version
+        # tag 形如 gospeak-server-v1.2.3，镜像 tag 只要 1.2.3，
+        # 因此走 release-naming.mjs 解析而不是字符串裁剪。
+        run: |
+          set -euo pipefail
+          parsed="$(node scripts/release-naming.mjs parse "${{ steps.ref.outputs.tag }}")"
+          echo "version=${parsed##* }" >> "$GITHUB_OUTPUT"
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/gospeak-org/gospeak-server
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}},value=${{ steps.version.outputs.version }}
+            type=raw,value=latest
+            type=sha,prefix=
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - name: Resolve client web dist
+        id: web
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          url="$(
+            gh release view "$WEB_RELEASE_TAG" --repo GOSpeak-org/GOSpeak-Client \
+              --json assets \
+              --jq '[.assets[] | select(.name | endswith("-dist.tar.gz"))][0].url'
+          )"
+          if [ -z "$url" ] || [ "$url" = "null" ]; then
+            echo "::error::no -dist.tar.gz asset in $WEB_RELEASE_TAG" >&2
+            exit 1
+          fi
+          curl -sSfL "$url" -o "$RUNNER_TEMP/web-dist.tar.gz"
+          sha="$(sha256sum "$RUNNER_TEMP/web-dist.tar.gz" | cut -d' ' -f1)"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          echo "resolved: $url (sha256=$sha)"
+      - name: Build and push image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          # 不在发布链导出 GHA 缓存：mode=max 要把双平台全部中间层传回 GitHub，
+          # 单次实测 207s；而发布构建的 ldflags 含 VERSION/COMMIT，每次都变，
+          # 导出的层下次也命中不了。缓存由 PR 的 verify job 持续填充即可。
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
+            COMMIT=${{ steps.commit.outputs.sha }}
+            CLIENT_WEB_URL=${{ steps.web.outputs.url }}
+            CLIENT_WEB_SHA256=${{ steps.web.outputs.sha256 }}

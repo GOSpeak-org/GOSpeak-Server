@@ -1,0 +1,25 @@
+node_modules/
+.superpowers/
+.turbo/
+*.log
+.DS_Store
+*.local
+
+/server/gospeak
+/server/uploads/
+/server/logs/
+/server/.env*
+/server/db/
+*.db
+*.db-shm
+*.db-wal
+/test/.runtime/
+/deploy/.env
+/deploy/env/*.local.env
+
+/server/internal/webui/dist/*
+!/server/internal/webui/dist/EMBED_PLACEHOLDER
+
+# Agent 测试报告：只规范文件入库，日志按需
+agent_test_logs/*
+!agent_test_logs/AGENTS.md

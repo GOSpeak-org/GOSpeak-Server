@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GOSpeak · 扩展主题家族预览</title>
+<style>
+	:root { --page-bg:#eef0f4; --page-fg:#1a1c22; --page-muted:#666b78; --page-line:#d8dbe2; }
+	* { box-sizing: border-box; }
+	body { margin:0; padding:40px 32px 72px; background:var(--page-bg); color:var(--page-fg);
+		font:14px/1.6 -apple-system,"SF Pro SC","PingFang SC","Segoe UI",sans-serif; -webkit-font-smoothing:antialiased; }
+	.wrap { max-width:1440px; margin:0 auto; }
+	h1 { margin:0 0 6px; font-size:24px; letter-spacing:-.01em; }
+	h2 { margin:0 0 14px; font-size:13px; font-weight:600; letter-spacing:.02em; color:var(--page-muted); text-transform:uppercase; }
+	p.lede { margin:0 0 32px; color:var(--page-muted); max-width:88ch; }
+	code { font-family:ui-monospace,"SF Mono",monospace; font-size:12px; background:#dfe3ea; padding:1px 5px; border-radius:4px; }
+	section { margin-bottom:40px; }
+	.scope--acid { --bg: oklch(98% 0 0); --fg: oklch(0% 0 0); --card: oklch(98% 0 0); --primary: oklch(51.1% 0.262 276.966); --secondary: oklch(73.37% 0.224 48.25); --muted: oklch(95% 0 0); --mutedfg: oklch(0% 0 0 / 60%); --faintfg: oklch(0% 0 0 / 42%); --accent: oklch(92.78% 0.264 122.962); --neutral: oklch(21.31% 0.128 278.68); --border: oklch(91% 0 0); --sunken: oklch(83.41% 0 0); --selected: oklch(84.7% 0 0); }
+	.scope--aurora { --bg: oklch(98.5% 0.005 235); --fg: oklch(8% 0.012 255); --card: oklch(98.5% 0.005 235); --primary: oklch(51.1% 0.262 276.966); --secondary: oklch(70% 0.13 210); --muted: oklch(94.5% 0.007 235); --mutedfg: oklch(8% 0.012 255 / 60%); --faintfg: oklch(8% 0.012 255 / 42%); --accent: oklch(89% 0.11 310); --neutral: oklch(28% 0.04 250); --border: oklch(91.5% 0.008 235); --sunken: oklch(82.5% 0.009 235); --selected: oklch(85% 0.012 235); }
+	.scope--ember { --bg: oklch(98.5% 0.006 75); --fg: oklch(8% 0.012 40); --card: oklch(98.5% 0.006 75); --primary: oklch(51.1% 0.262 276.966); --secondary: oklch(66% 0.16 45); --muted: oklch(94.5% 0.009 70); --mutedfg: oklch(8% 0.012 40 / 60%); --faintfg: oklch(8% 0.012 40 / 42%); --accent: oklch(86% 0.14 85); --neutral: oklch(28% 0.045 55); --border: oklch(91.5% 0.01 70); --sunken: oklch(82.5% 0.012 70); --selected: oklch(85% 0.014 70); }
+	.scope--forest { --bg: oklch(98.3% 0.006 150); --fg: oklch(8% 0.012 155); --card: oklch(98.3% 0.006 150); --primary: oklch(51.1% 0.262 276.966); --secondary: oklch(64% 0.11 155); --muted: oklch(94% 0.009 150); --mutedfg: oklch(8% 0.012 155 / 60%); --faintfg: oklch(8% 0.012 155 / 42%); --accent: oklch(86% 0.1 170); --neutral: oklch(26% 0.05 155); --border: oklch(91.5% 0.01 150); --sunken: oklch(82% 0.011 150); --selected: oklch(84.5% 0.013 150); }
+	.scope--dark { --bg: oklch(21% 0.006 277); --fg: oklch(94% 0.006 277); --card: oklch(24% 0.008 277); --primary: oklch(56.5% 0.205 277); --secondary: oklch(74% 0.163 48.25); --muted: oklch(19.5% 0.006 277); --mutedfg: oklch(94% 0.006 277 / 56%); --faintfg: oklch(94% 0.006 277 / 38%); --accent: oklch(82% 0.196 122.962); --neutral: oklch(31% 0.032 278.68); --border: oklch(30.5% 0.008 277); --sunken: oklch(16.5% 0.005 277); --selected: oklch(29.5% 0.009 277); }
+	.scope--midnight { --bg: oklch(20% 0.014 250); --fg: oklch(94% 0.01 250); --card: oklch(23% 0.016 250); --primary: oklch(57% 0.19 277); --secondary: oklch(73% 0.09 210); --muted: oklch(18.5% 0.012 250); --mutedfg: oklch(94% 0.01 250 / 56%); --faintfg: oklch(94% 0.01 250 / 38%); --accent: oklch(81% 0.1 310); --neutral: oklch(29% 0.035 250); --border: oklch(30% 0.016 250); --sunken: oklch(15% 0.01 250); --selected: oklch(28.5% 0.02 250); }
+	.scope--cinder { --bg: oklch(20% 0.012 55); --fg: oklch(94% 0.01 60); --card: oklch(23% 0.014 55); --primary: oklch(57% 0.19 277); --secondary: oklch(72% 0.11 45); --muted: oklch(18.5% 0.011 55); --mutedfg: oklch(94% 0.01 60 / 56%); --faintfg: oklch(94% 0.01 60 / 38%); --accent: oklch(82% 0.1 85); --neutral: oklch(29% 0.04 55); --border: oklch(30% 0.014 55); --sunken: oklch(15% 0.01 55); --selected: oklch(28.5% 0.02 55); }
+	.scope--grove { --bg: oklch(19.5% 0.012 155); --fg: oklch(94% 0.01 155); --card: oklch(22.5% 0.014 155); --primary: oklch(57% 0.19 277); --secondary: oklch(70% 0.08 155); --muted: oklch(18% 0.01 155); --mutedfg: oklch(94% 0.01 155 / 56%); --faintfg: oklch(94% 0.01 155 / 38%); --accent: oklch(80% 0.06 170); --neutral: oklch(28% 0.035 155); --border: oklch(29.5% 0.014 155); --sunken: oklch(14.5% 0.008 155); --selected: oklch(28% 0.018 155); }
+	.grid { display:grid; grid-template-columns:repeat(4,1fr); gap:18px; }
+	@media(max-width:1280px){.grid{grid-template-columns:repeat(2,1fr)}}
+	@media(max-width:700px){.grid{grid-template-columns:1fr}}
+	.pane { border-radius:12px; overflow:hidden; border:1px solid var(--page-line); background:#fff; }
+	.pane__label { display:flex; align-items:baseline; gap:6px; padding:9px 11px; font-size:12px; font-weight:700;
+		border-bottom:1px solid var(--page-line); background:#fafbfc; }
+	.pane__label>span { font-weight:400; color:var(--page-muted); font-size:10.5px; }
+	.pane__label .badge { margin-left:auto; font-size:10px; padding:1px 6px; border-radius:999px; background:#e8ebf1; color:#4a5060; }
+	.pane__label .badge--new { background:#e3f0ff; color:#1c5bb0; }
+	.pane__body { padding:11px; }
+	.mock { display:grid; grid-template-columns:40px 1fr; height:300px; border-radius:8px; overflow:hidden;
+		background:var(--bg); color:var(--fg); border:1px solid var(--border); }
+	.rail { background:var(--muted); display:flex; flex-direction:column; align-items:center; gap:7px; padding:8px 0; border-right:1px solid var(--border); }
+	.rail__dot { width:26px; height:26px; border-radius:7px; background:var(--card); border:1px solid var(--border); }
+	.rail__dot--active { background:var(--primary); border-color:transparent; }
+	.panel { background:var(--card); display:flex; flex-direction:column; min-width:0; }
+	.panel__head { display:flex; align-items:center; gap:6px; height:32px; padding:0 9px; flex:none; border-bottom:1px solid var(--border); }
+	.panel__head b { font-size:12px; font-weight:600; }
+	.search { margin-left:auto; width:88px; height:20px; padding:0 6px; border-radius:4px; background:var(--sunken); color:var(--faintfg); font-size:10px; display:flex; align-items:center; }
+	.panel__body { padding:9px; overflow:hidden; display:flex; flex-direction:column; gap:8px; }
+	.row { display:flex; align-items:center; gap:6px; padding:6px; border-radius:5px; font-size:11px; }
+	.row--selected { background:var(--selected); }
+	.row--hover { background:var(--muted); }
+	.row small { color:var(--mutedfg); font-size:10px; }
+	.avatar { width:18px; height:18px; border-radius:999px; background:var(--info); flex:none; }
+	.tiers { display:flex; flex-direction:column; gap:1px; padding:1px 0; font-size:10px; }
+	.t-fg { color:var(--fg); } .t-muted { color:var(--mutedfg); } .t-faint { color:var(--faintfg); }
+	.chips { display:flex; gap:4px; flex-wrap:wrap; }
+	.chip { font-size:9px; padding:1px 5px; border-radius:999px; font-weight:500; border:1px solid; }
+	.chip--success { color:oklch(45% .13 155); border-color:var(--border); }
+	.chip--warning { color:oklch(60% .13 75); border-color:var(--border); }
+	.chip--info { color:var(--fg); border-color:var(--border); background:var(--neutral); }
+	.btns { display:flex; flex-wrap:wrap; gap:4px; margin-top:auto; padding-top:4px; }
+	.btn { height:23px; padding:0 7px; border-radius:4px; display:inline-flex; align-items:center; font-size:10px; font-weight:500; border:1px solid transparent; }
+	.btn--primary { background:var(--primary); color:oklch(98% .005 277); }
+	.btn--secondary { background:var(--secondary); color:oklch(16% .03 210); }
+	.btn--accent { background:var(--accent); color:oklch(22% .05 310); }
+	.btn--outline { background:var(--card); color:var(--fg); border-color:var(--border); }
+	.swatchrow { display:flex; gap:4px; margin-top:9px; }
+	.sw { width:22px; height:22px; border-radius:5px; border:1px solid rgba(128,128,128,.35); }
+	table { width:100%; border-collapse:collapse; font-size:11px; background:#fff; border-radius:10px; overflow:hidden; }
+	th,td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--page-line); }
+	th { font-size:10px; color:var(--page-muted); background:#fafbfc; }
+	.mono { font-family:ui-monospace,"SF Mono",monospace; font-size:10px; }
+	.note { font-size:12px; color:var(--page-muted); margin:12px 0 0; }
+	.note b { color:var(--page-fg); }
+</style>
+</head>
+<body>
+<div class="wrap">
+	<h1>GOSpeak · 三组扩展主题</h1>
+	<p class="lede">
+		上排为浅色、下排为深色，每组严格成对（Aurora/Midnight、Ember/Cinder、Forest/Grove）。
+		八个面板渲染完全相同的组件结构。色值逐字取自 <code>packages/components/src/theme.css</code>，由 <code>data-theme</code> 选择器作用。
+	</p>
+	<section>
+		<h2>同一界面 · 八套主题对照</h2>
+		<div class="grid">
+		<div class="pane">
+			<div class="pane__label">Acid <span>现有 · 亮色</span><span class="badge ">acid</span></div>
+			<div class="pane__body scope scope--acid">
+				<div class="mock">
+					<div class="rail">
+						<div class="rail__dot rail__dot--active"></div>
+						<div class="rail__dot"></div><div class="rail__dot"></div><div class="rail__dot"></div>
+					</div>
+					<div class="panel">
+						<div class="panel__head"><b>大厅</b><div class="search">搜索频道</div></div>
+						<div class="panel__body">
+							<div class="row row--selected"><div class="avatar"></div> 语音大厅 <small>4 / 8</small></div>
+							<div class="row row--hover"><div class="avatar"></div> 开黑一队 <small>2 / 4</small></div>
+							<div class="row"><div class="avatar"></div> 挂机区 <small>空闲</small></div>
+							<div class="tiers">
+								<div class="t-fg">主文字：频道名 / 消息正文</div>
+								<div class="t-muted">次要文字：成员数、时间戳</div>
+								<div class="t-faint">弱化文字：占位符、空状态</div>
+							</div>
+							<div class="chips">
+								<span class="chip chip--success">在线</span>
+								<span class="chip chip--warning">占用高</span>
+								<span class="chip chip--info">同步中</span>
+								<span class="chip chip--neutral">访客</span>
+							</div>
+							<div class="btns">
+								<span class="btn btn--primary">创建房间</span>
+								<span class="btn btn--secondary">次要</span>
+								<span class="btn btn--accent">强调</span>
+								<span class="btn btn--outline">设置</span>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="swatchrow">
+					<div class="sw" style="background:var(--primary)"></div>
+					<div class="sw" style="background:var(--secondary)"></div>
+					<div class="sw" style="background:var(--accent)"></div>
+					<div class="sw" style="background:var(--neutral)"></div>
+					<div class="sw" style="background:var(--sunken)"></div>
+					<div class="sw" style="background:var(--selected)"></div>
+				</div>
+			</div>
+		</div>
+		<div class="pane">
+			<div class="pane__label">Aurora <span>新增 · 冷青 + 丁香紫</span><span class="badge badge--new">aurora</span></div>
+			<div class="pane__body scope scope--aurora">
+				<div class="mock">
+					<div class="rail">
+						<div class="rail__dot rail__dot--active"></div>
+						<div class="rail__dot"></div><div class="rail__dot"></div><div class="rail__dot"></div>
+					</div>
+					<div class="panel">
+						<div class="panel__head"><b>大厅</b><div class="search">搜索频道</div></div>
+						<div class="panel__body">
+							<div class="row row--selected"><div class="avatar"></div> 语音大厅 <small>4 / 8</small></div>
+							<div class="row row--hover"><div class="avatar"></div> 开黑一队 <small>2 / 4</small></div>
+							<div class="row"><div class="avatar"></div> 挂机区 <small>空闲</small></div>
+							<div class="tiers">
+								<div class="t-fg">主文字：频道名 / 消息正文</div>
+								<div class="t-muted">次要文字：成员数、时间戳</div>
+								<div class="t-faint">弱化文字：占位符、空状态</div>
+							</div>
+							<div class="chips">
+								<span class="chip chip--success">在线</span>
+								<span class="chip chip--warning">占用高</span>
+								<span class="chip chip--info">同步中</span>
+								<span class="chip chip--neutral">访客</span>
+							</div>
+							<div class="btns">
+								<span class="btn btn--primary">创建房间</span>
+								<span class="btn btn--secondary">次要</span>
+								<span class="btn btn--accent">强调</span>
+								<span class="btn btn--outline">设置</span>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="swatchrow">
+					<div class="sw" style="background:var(--primary)"></div>
+					<div class="sw" style="background:var(--secondary)"></div>
+					<div class="sw" style="background:var(--accent)"></div>
+					<div class="sw" style="background:var(--neutral)"></div>
+					<div class="sw" style="background:var(--sunken)"></div>
+					<div class="sw" style="background:var(--selected)"></div>
+				</div>
+			</div>
+		</div>
+		<div class="pane">
+			<div class="pane__label">Ember <span>新增 · 暖橙 + 琥珀</span><span class="badge badge--new">ember</span></div>
+			<div class="pane__body scope scope--ember">
+				<div class="mock">
+					<div class="rail">
+						<div class="rail__dot rail__dot--active"></div>
+						<div class="rail__dot"></div><div class="rail__dot"></div><div class="rail__dot"></div>
+					</div>
+					<div class="panel">
+						<div class="panel__head"><b>大厅</b><div class="search">搜索频道</div></div>
+						<div class="panel__body">
+							<div class="row row--selected"><div class="avatar"></div> 语音大厅 <small>4 / 8</small></div>
+							<div class="row row--hover"><div class="avatar"></div> 开黑一队 <small>2 / 4</small></div>
+							<div class="row"><div class="avatar"></div> 挂机区 <small>空闲</small></div>
+							<div class="tiers">
+								<div class="t-fg">主文字：频道名 / 消息正文</div>
+								<div class="t-muted">次要文字：成员数、时间戳</div>
+								<div class="t-faint">弱化文字：占位符、空状态</div>
+							</div>
+							<div class="chips">
+								<span class="chip chip--success">在线</span>
+								<span class="chip chip--warning">占用高</span>
+								<span class="chip chip--info">同步中</span>
+								<span class="chip chip--neutral">访客</span>
+							</div>
+							<div class="btns">
+								<span class="btn btn--primary">创建房间</span>
+								<span class="btn btn--secondary">次要</span>
+								<span class="btn btn--accent">强调</span>
+								<span class="btn btn--outline">设置</span>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="swatchrow">
+					<div class="sw" style="background:var(--primary)"></div>
+					<div class="sw" style="background:var(--secondary)"></div>
+					<div class="sw" style="background:var(--accent)"></div>
+					<div class="sw" style="background:var(--neutral)"></div>
+					<div class="sw" style="background:var(--sunken)"></div>
+					<div class="sw" style="background:var(--selected)"></div>
+				</div>
+			</div>
+		</div>
+		<div class="pane">
+			<div class="pane__label">Forest <span>新增 · 松绿 + 青瓷</span><span class="badge badge--new">forest</span></div>
+			<div class="pane__body scope scope--forest">
+				<div class="mock">
+					<div class="rail">
+						<div class="rail__dot rail__dot--active"></div>
+						<div class="rail__dot"></div><div class="rail__dot"></div><div class="rail__dot"></div>
+					</div>
+					<div class="panel">
+						<div class="panel__head"><b>大厅</b><div class="search">搜索频道</div></div>
+						<div class="panel__body">
+							<div class="row row--selected"><div class="avatar"></div> 语音大厅 <small>4 / 8</small></div>
+							<div class="row row--hover"><div class="avatar"></div> 开黑一队 <small>2 / 4</small></div>
+							<div class="row"><div class="avatar"></div> 挂机区 <small>空闲</small></div>
+							<div class="tiers">
+								<div class="t-fg">主文字：频道名 / 消息正文</div>
+								<div class="t-muted">次要文字：成员数、时间戳</div>
+								<div class="t-faint">弱化文字：占位符、空状态</div>
+							</div>
+							<div class="chips">
+								<span class="chip chip--success">在线</span>
+								<span class="chip chip--warning">占用高</span>
+								<span class="chip chip--info">同步中</span>
+								<span class="chip chip--neutral">访客</span>
+							</div>
+							<div class="btns">
+								<span class="btn btn--primary">创建房间</span>
+								<span class="btn btn--secondary">次要</span>
+								<span class="btn btn--accent">强调</span>
+								<span class="btn btn--outline">设置</span>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="swatchrow">
+					<div class="sw" style="background:var(--primary)"></div>
+					<div class="sw" style="background:var(--secondary)"></div>
+					<div class="sw" style="background:var(--accent)"></div>
+					<div class="sw" style="background:var(--neutral)"></div>
+					<div class="sw" style="background:var(--sunken)"></div>
+					<div class="sw" style="background:var(--selected)"></div>
+				</div>
+			</div>
+		</div>
+		<div class="pane">
+			<div class="pane__label">Dark <span>现有 · 暗色</span><span class="badge ">dark</span></div>
+			<div class="pane__body scope scope--dark">
+				<div class="mock">
+					<div class="rail">
+						<div class="rail__dot rail__dot--active"></div>
+						<div class="rail__dot"></div><div class="rail__dot"></div><div class="rail__dot"></div>
+					</div>
+					<div class="panel">
+						<div class="panel__head"><b>大厅</b><div class="search">搜索频道</div></div>
+						<div class="panel__body">
+							<div class="row row--selected"><div class="avatar"></div> 语音大厅 <small>4 / 8</small></div>
+							<div class="row row--hover"><div class="avatar"></div> 开黑一队 <small>2 / 4</small></div>
+							<div class="row"><div class="avatar"></div> 挂机区 <small>空闲</small></div>
+							<div class="tiers">
+								<div class="t-fg">主文字：频道名 / 消息正文</div>
+								<div class="t-muted">次要文字：成员数、时间戳</div>
+								<div class="t-faint">弱化文字：占位符、空状态</div>
+							</div>
+							<div class="chips">
+								<span class="chip chip--success">在线</span>
+								<span class="chip chip--warning">占用高</span>
+								<span class="chip chip--info">同步中</span>
+								<span class="chip chip--neutral">访客</span>
+							</div>
+							<div class="btns">
+								<span class="btn btn--primary">创建房间</span>
+								<span class="btn btn--secondary">次要</span>
+								<span class="btn btn--accent">强调</span>
+								<span class="btn btn--outline">设置</span>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="swatchrow">
+					<div class="sw" style="background:var(--primary)"></div>
+					<div class="sw" style="background:var(--secondary)"></div>
+					<div class="sw" style="background:var(--accent)"></div>
+					<div class="sw" style="background:var(--neutral)"></div>
+					<div class="sw" style="background:var(--sunken)"></div>
+					<div class="sw" style="background:var(--selected)"></div>
+				</div>
+			</div>
+		</div>
+		<div class="pane">
+			<div class="pane__label">Midnight <span>新增 · Aurora 的暗色</span><span class="badge badge--new">midnight</span></div>
+			<div class="pane__body scope scope--midnight">
+				<div class="mock">
+					<div class="rail">
+						<div class="rail__dot rail__dot--active"></div>
+						<div class="rail__dot"></div><div class="rail__dot"></div><div class="rail__dot"></div>
+					</div>
+					<div class="panel">
+						<div class="panel__head"><b>大厅</b><div class="search">搜索频道</div></div>
+						<div class="panel__body">
+							<div class="row row--selected"><div class="avatar"></div> 语音大厅 <small>4 / 8</small></div>
+							<div class="row row--hover"><div class="avatar"></div> 开黑一队 <small>2 / 4</small></div>
+							<div class="row"><div class="avatar"></div> 挂机区 <small>空闲</small></div>
+							<div class="tiers">
+								<div class="t-fg">主文字：频道名 / 消息正文</div>
+								<div class="t-muted">次要文字：成员数、时间戳</div>
+								<div class="t-faint">弱化文字：占位符、空状态</div>
+							</div>
+							<div class="chips">
+								<span class="chip chip--success">在线</span>
+								<span class="chip chip--warning">占用高</span>
+								<span class="chip chip--info">同步中</span>
+								<span class="chip chip--neutral">访客</span>
+							</div>
+							<div class="btns">
+								<span class="btn btn--primary">创建房间</span>
+								<span class="btn btn--secondary">次要</span>
+								<span class="btn btn--accent">强调</span>
+								<span class="btn btn--outline">设置</span>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="swatchrow">
+					<div class="sw" style="background:var(--primary)"></div>
+					<div class="sw" style="background:var(--secondary)"></div>
+					<div class="sw" style="background:var(--accent)"></div>
+					<div class="sw" style="background:var(--neutral)"></div>
+					<div class="sw" style="background:var(--sunken)"></div>
+					<div class="sw" style="background:var(--selected)"></div>
+				</div>
+			</div>
+		</div>
+		<div class="pane">
+			<div class="pane__label">Cinder <span>新增 · Ember 的暗色</span><span class="badge badge--new">cinder</span></div>
+			<div class="pane__body scope scope--cinder">
+				<div class="mock">
+					<div class="rail">
+						<div class="rail__dot rail__dot--active"></div>
+						<div class="rail__dot"></div><div class="rail__dot"></div><div class="rail__dot"></div>
+					</div>
+					<div class="panel">
+						<div class="panel__head"><b>大厅</b><div class="search">搜索频道</div></div>
+						<div class="panel__body">
+							<div class="row row--selected"><div class="avatar"></div> 语音大厅 <small>4 / 8</small></div>
+							<div class="row row--hover"><div class="avatar"></div> 开黑一队 <small>2 / 4</small></div>
+							<div class="row"><div class="avatar"></div> 挂机区 <small>空闲</small></div>
+							<div class="tiers">
+								<div class="t-fg">主文字：频道名 / 消息正文</div>
+								<div class="t-muted">次要文字：成员数、时间戳</div>
+								<div class="t-faint">弱化文字：占位符、空状态</div>
+							</div>
+							<div class="chips">
+								<span class="chip chip--success">在线</span>
+								<span class="chip chip--warning">占用高</span>
+								<span class="chip chip--info">同步中</span>
+								<span class="chip chip--neutral">访客</span>
+							</div>
+							<div class="btns">
+								<span class="btn btn--primary">创建房间</span>
+								<span class="btn btn--secondary">次要</span>
+								<span class="btn btn--accent">强调</span>
+								<span class="btn btn--outline">设置</span>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="swatchrow">
+					<div class="sw" style="background:var(--primary)"></div>
+					<div class="sw" style="background:var(--secondary)"></div>
+					<div class="sw" style="background:var(--accent)"></div>
+					<div class="sw" style="background:var(--neutral)"></div>
+					<div class="sw" style="background:var(--sunken)"></div>
+					<div class="sw" style="background:var(--selected)"></div>
+				</div>
+			</div>
+		</div>
+		<div class="pane">
+			<div class="pane__label">Grove <span>新增 · Forest 的暗色</span><span class="badge badge--new">grove</span></div>
+			<div class="pane__body scope scope--grove">
+				<div class="mock">
+					<div class="rail">
+						<div class="rail__dot rail__dot--active"></div>
+						<div class="rail__dot"></div><div class="rail__dot"></div><div class="rail__dot"></div>
+					</div>
+					<div class="panel">
+						<div class="panel__head"><b>大厅</b><div class="search">搜索频道</div></div>
+						<div class="panel__body">
+							<div class="row row--selected"><div class="avatar"></div> 语音大厅 <small>4 / 8</small></div>
+							<div class="row row--hover"><div class="avatar"></div> 开黑一队 <small>2 / 4</small></div>
+							<div class="row"><div class="avatar"></div> 挂机区 <small>空闲</small></div>
+							<div class="tiers">
+								<div class="t-fg">主文字：频道名 / 消息正文</div>
+								<div class="t-muted">次要文字：成员数、时间戳</div>
+								<div class="t-faint">弱化文字：占位符、空状态</div>
+							</div>
+							<div class="chips">
+								<span class="chip chip--success">在线</span>
+								<span class="chip chip--warning">占用高</span>
+								<span class="chip chip--info">同步中</span>
+								<span class="chip chip--neutral">访客</span>
+							</div>
+							<div class="btns">
+								<span class="btn btn--primary">创建房间</span>
+								<span class="btn btn--secondary">次要</span>
+								<span class="btn btn--accent">强调</span>
+								<span class="btn btn--outline">设置</span>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="swatchrow">
+					<div class="sw" style="background:var(--primary)"></div>
+					<div class="sw" style="background:var(--secondary)"></div>
+					<div class="sw" style="background:var(--accent)"></div>
+					<div class="sw" style="background:var(--neutral)"></div>
+					<div class="sw" style="background:var(--sunken)"></div>
+					<div class="sw" style="background:var(--selected)"></div>
+				</div>
+			</div>
+		</div>
+		</div>
+	</section>
+	<section>
+		<h2>关键 token 对照</h2>
+		<table>
+			<thead><tr><th>token</th><th>Acid</th><th>Aurora</th><th>Ember</th><th>Forest</th><th>Dark</th><th>Midnight</th><th>Cinder</th><th>Grove</th></tr></thead>
+			<tbody><tr><td>secondary</td><td class="mono">oklch(73.37% 0.224 48.25)</td><td class="mono">oklch(70% 0.13 210)</td><td class="mono">oklch(66% 0.16 45)</td><td class="mono">oklch(64% 0.11 155)</td><td class="mono">oklch(74% 0.163 48.25)</td><td class="mono">oklch(73% 0.09 210)</td><td class="mono">oklch(72% 0.11 45)</td><td class="mono">oklch(70% 0.08 155)</td></tr><tr><td>accent</td><td class="mono">oklch(92.78% 0.264 122.962)</td><td class="mono">oklch(89% 0.11 310)</td><td class="mono">oklch(86% 0.14 85)</td><td class="mono">oklch(86% 0.1 170)</td><td class="mono">oklch(82% 0.196 122.962)</td><td class="mono">oklch(81% 0.1 310)</td><td class="mono">oklch(82% 0.1 85)</td><td class="mono">oklch(80% 0.06 170)</td></tr><tr><td>background</td><td class="mono">oklch(98% 0 0)</td><td class="mono">oklch(98.5% 0.005 235)</td><td class="mono">oklch(98.5% 0.006 75)</td><td class="mono">oklch(98.3% 0.006 150)</td><td class="mono">oklch(21% 0.006 277)</td><td class="mono">oklch(20% 0.014 250)</td><td class="mono">oklch(20% 0.012 55)</td><td class="mono">oklch(19.5% 0.012 155)</td></tr><tr><td>border</td><td class="mono">oklch(91% 0 0)</td><td class="mono">oklch(91.5% 0.008 235)</td><td class="mono">oklch(91.5% 0.01 70)</td><td class="mono">oklch(91.5% 0.01 150)</td><td class="mono">oklch(30.5% 0.008 277)</td><td class="mono">oklch(30% 0.016 250)</td><td class="mono">oklch(30% 0.014 55)</td><td class="mono">oklch(29.5% 0.014 155)</td></tr></tbody>
+		</table>
+		<p class="note"><b>派生规则：</b>三套深色分别复用对应浅色的色相（冷青 210 / 丁香 310、暖橙 45 / 琥珀 85、松绿 155 / 青瓷 170），只提明度、降彩度；
+		背景 / 卡片 / 浮层分三档，描边在深色下比 card 更亮（≈1.23:1），文字按对比度对齐（浅 60%/42%，深 56%/38%）。</p>
+		<p class="note"><b>使用方式：</b>设置 → 外观。关闭深色模式可选 Acid / Aurora / Ember / Forest；打开深色模式可选 Dark / Midnight / Cinder / Grove，分别记忆。</p>
+	</section>
+</div>
+</body>
+</html>
