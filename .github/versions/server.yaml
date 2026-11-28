@@ -13,19 +13,21 @@
 #
 # 同步约束（release.yml 的 version-check 会校验）：根 VERSION 与根 package.json
 # 的 version 必须与本文件一致。
-version: "1.3.0-rc.1"
+version: "1.4.0-rc.1"
 
 # 本次发版说明：优先作为 GitHub Release 的 release notes（块标量 | 多行）。
 # 留空时由 scripts/build-changelog.mjs 按 conventional commits 生成，
 # 基线只取本组件的历史 tag。
 notes: |
-  GOSpeak 1.3.0-rc.1 —— 屏幕共享按需订阅、跨层 UUID 标识与插件/子模块规划。
+  GOSpeak 1.4.0-rc.1 —— 三仓拆分后的服务端首个独立发布。
 
-  ## 功能
-  - 屏幕共享按需订阅：仅在点击成员卡片后订阅远端音视频，切换客户端时中断过期订阅
-  - 静音与成员管理流程迁移到 user_uuid 跨层标识
+  ## 发布形态
+  - 服务端独立为 `GOSpeak-Server` 仓，产物发布到本仓 Release（根仓只做聚合页）
+  - 单版本产出 10 个平台二进制（linux amd64/arm64/armv7、darwin amd64/arm64、
+    freebsd amd64/arm64、openbsd amd64、windows amd64/arm64）与 `SHA256SUMS`
+  - 构建参数：`CGO_ENABLED=0` + `GOOS/GOARCH(/GOARM)`，ldflags 注入
+    `GOSpeak/internal/buildinfo.Version/Commit`
 
-  ## 规划与文档
-  - 新增插件平台设计与五份实施计划
-  - 新增三端 Git Submodule 拆分方案与音频输出策略计划
-  - 文档与代码基线对齐，清理过期视觉基线
+  ## 工程
+  - 发版链：`version-bump` 读取本文件声明的版本 → 打 tag → `release.yml` 交叉编译并上传产物
+  - lefthook 增加 pre-push 门禁，禁止直接推 `release` 分支

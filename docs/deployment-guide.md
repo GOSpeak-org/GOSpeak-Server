@@ -1,6 +1,6 @@
 # GOSpeak 部署/运维手册
 
-> 更新: 2026-11-24（随代码版本，当前 `VERSION` = 1.3.0-rc.1）
+> 更新: 2026-11-28（随代码版本，当前 `VERSION` = 1.4.0-rc.1）
 >
 > **统一部署入口已迁到 [`deploy/DEPLOY.md`](../deploy/DEPLOY.md)。** 编排文件二选一：精简起步 `deploy/docker-compose.yml`、全档位 `deploy/docker-compose.standard.yml`；启动必须显式带 `-f`，不要用裸 `docker compose up -d`（会选中精简版，`COMPOSE_PROFILES` 不生效）。
 > 本文保留概念说明；一键命令与公网清单以 `deploy/DEPLOY.md` 为准。
