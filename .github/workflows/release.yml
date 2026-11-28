@@ -371,8 +371,13 @@ jobs:
           TAG: ${{ needs.resolve-tag.outputs.tag }}
           SUMS: ${{ steps.sums.outputs.checksum_file }}
         run: |
+          set -euo pipefail
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG not found; skipping SHA256SUMS upload."
             exit 0
           fi
-          gh release upload "$TAG" "dist/${SUMS}" --clobber
+          # 规范名 SHA256SUMS-<tag>.txt 由 release-naming.mjs 派生；
+          # 同时上传固定名 SHA256SUMS 别名（内容逐字节相同），便于下载脚本
+          # 不依赖版本号即可取校验和。
+          cp "dist/${SUMS}" /tmp/SHA256SUMS
+          gh release upload "$TAG" "dist/${SUMS}" /tmp/SHA256SUMS --clobber
